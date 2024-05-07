@@ -5,17 +5,17 @@ use crate::{
     primitives::EVMError,
     Evm, FrameOrResult, FrameResult, Inspector, JournalEntry,
 };
-use core::cell::RefCell;
+use core::{any::Any, cell::RefCell};
 use revm_interpreter::opcode::InstructionTables;
 use std::{boxed::Box, rc::Rc, sync::Arc, vec::Vec};
 
 /// Provides access to an `Inspector` instance.
-pub trait GetInspector<T, DB: Database> {
+pub trait GetInspector<T: Any, DB: Database> {
     /// Returns the associated `Inspector`.
     fn get_inspector(&mut self) -> &mut impl Inspector<T, DB>;
 }
 
-impl<T, DB: Database, INSP: Inspector<T, DB>> GetInspector<T, DB> for INSP {
+impl<T: Any, DB: Database, INSP: Inspector<T, DB>> GetInspector<T, DB> for INSP {
     #[inline]
     fn get_inspector(&mut self) -> &mut impl Inspector<T, DB> {
         self
@@ -34,7 +34,7 @@ impl<T, DB: Database, INSP: Inspector<T, DB>> GetInspector<T, DB> for INSP {
 /// A few instructions handlers are wrapped twice once for `step` and `step_end`
 /// and in case of Logs and Selfdestruct wrapper is wrapped again for the
 /// `log` and `selfdestruct` calls.
-pub fn inspector_handle_register<'a, T, DB: Database, EXT: GetInspector<T, DB>>(
+pub fn inspector_handle_register<'a, T: Any, DB: Database, EXT: GetInspector<T, DB>>(
     handler: &mut EvmHandler<'a, T, EXT, DB>,
 ) {
     // Every instruction inside flat table that is going to be wrapped by inspector calls.
@@ -142,7 +142,7 @@ pub fn inspector_handle_register<'a, T, DB: Database, EXT: GetInspector<T, DB>>(
         move |ctx, mut inputs| -> Result<FrameOrResult, EVMError<DB::Error>> {
             let inspector = ctx.external.get_inspector();
             // call inspector create to change input or return outcome.
-            if let Some(outcome) = inspector.create(&mut ctx.evm, &mut inputs, &mut u32::from_be(1))
+            if let Some(outcome) = inspector.create(&mut ctx.evm, &mut inputs, Box::new("test") as Box<dyn Any>)
             {
                 create_input_stack_inner.borrow_mut().push(inputs.clone());
                 return Ok(FrameOrResult::Result(FrameResult::Create(outcome)));
@@ -168,7 +168,7 @@ pub fn inspector_handle_register<'a, T, DB: Database, EXT: GetInspector<T, DB>>(
             let outcome = ctx
                 .external
                 .get_inspector()
-                .call(&mut ctx.evm, &mut inputs, &mut T);
+                .call(&mut ctx.evm, &mut inputs, "1".to_string());
             call_input_stack_inner.borrow_mut().push(inputs.clone());
             if let Some(outcome) = outcome {
                 return Ok(FrameOrResult::Result(FrameResult::Call(outcome)));
@@ -249,7 +249,7 @@ pub fn inspector_handle_register<'a, T, DB: Database, EXT: GetInspector<T, DB>>(
 /// Outer closure that calls Inspector for every instruction.
 pub fn inspector_instruction<
     'a,
-    T,
+    T: Any,
     INSP: GetInspector<T, DB>,
     DB: Database,
     Instruction: Fn(&mut Interpreter, &mut Evm<'a, T, INSP, DB>) + 'a,
@@ -265,7 +265,7 @@ pub fn inspector_instruction<
             host.context
                 .external
                 .get_inspector()
-                .step(interpreter, &mut host.context.evm, &mut T);
+                .step(interpreter, &mut host.context.evm, Box::new("test"));
             if interpreter.instruction_result != InstructionResult::Continue {
                 return;
             }
@@ -320,7 +320,7 @@ mod tests {
         call_end: bool,
     }
 
-    impl<T, DB: Database> Inspector<T, DB> for StackInspector {
+    impl<T: Any, DB: Database> Inspector<T, DB> for StackInspector {
         fn initialize_interp(&mut self, _interp: &mut Interpreter, _context: &mut EvmContext<DB>) {
             if self.initialize_interp_called {
                 unreachable!("initialize_interp should not be called twice")
@@ -328,7 +328,7 @@ mod tests {
             self.initialize_interp_called = true;
         }
 
-        fn step(&mut self, _interp: &mut Interpreter, _context: &mut EvmContext<DB>, _: &mut T) {
+        fn step(&mut self, _interp: &mut Interpreter, _context: &mut EvmContext<DB>, _: T) {
             self.step += 1;
         }
 
@@ -336,12 +336,12 @@ mod tests {
             &mut self,
             _interp: &mut Interpreter,
             _context: &mut EvmContext<DB>,
-            _: &mut T,
+            _: T,
         ) {
             self.step_end += 1;
         }
 
-        fn call(&mut self, context: &mut EvmContext<DB>, _: &mut T) -> Option<CallOutcome> {
+        fn call(&mut self, context: &mut EvmContext<DB>, _inputs: &mut CallInputs, _: T) -> Option<CallOutcome> {
             if self.call {
                 unreachable!("call should not be called twice")
             }
@@ -355,7 +355,7 @@ mod tests {
             context: &mut EvmContext<DB>,
             _inputs: &CallInputs,
             outcome: CallOutcome,
-            _: &mut T,
+            _: T,
         ) -> CallOutcome {
             if self.call_end {
                 unreachable!("call_end should not be called twice")
@@ -369,7 +369,7 @@ mod tests {
             &mut self,
             context: &mut EvmContext<DB>,
             _call: &mut CreateInputs,
-            _: &mut T,
+            _: T,
         ) -> Option<CreateOutcome> {
             assert_eq!(context.journaled_state.depth(), 0);
             None
@@ -380,7 +380,7 @@ mod tests {
             context: &mut EvmContext<DB>,
             _inputs: &CreateInputs,
             outcome: CreateOutcome,
-            _: &mut T,
+            _: T,
         ) -> CreateOutcome {
             assert_eq!(context.journaled_state.depth(), 0);
             outcome

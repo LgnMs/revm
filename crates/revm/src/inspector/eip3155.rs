@@ -8,6 +8,7 @@ use crate::{
 };
 use revm_interpreter::OpCode;
 use serde::Serialize;
+use core::any::Any;
 use std::io::Write;
 
 /// [EIP-3155](https://eips.ethereum.org/EIPS/eip-3155) tracer [Inspector].
@@ -184,7 +185,7 @@ impl TracerEip3155 {
     }
 }
 
-impl<T, DB: Database> Inspector<T, DB> for TracerEip3155 {
+impl<T: Any, DB: Database> Inspector<T, DB> for TracerEip3155 {
     fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         // self.gas_inspector.initialize_interp(interp, context);
         <GasInspector as Inspector<u32, DB>>::initialize_interp(
@@ -198,7 +199,7 @@ impl<T, DB: Database> Inspector<T, DB> for TracerEip3155 {
         &mut self,
         interp: &mut Interpreter,
         context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         self.gas_inspector
             .step(interp, context, &mut u32::from_be(1));
@@ -219,7 +220,7 @@ impl<T, DB: Database> Inspector<T, DB> for TracerEip3155 {
         &mut self,
         interp: &mut Interpreter,
         context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         self.gas_inspector
             .step_end(interp, context, &mut u32::from_be(1));
@@ -257,7 +258,7 @@ impl<T, DB: Database> Inspector<T, DB> for TracerEip3155 {
         context: &mut EvmContext<DB>,
         inputs: &CallInputs,
         outcome: CallOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CallOutcome {
         let outcome = self
             .gas_inspector
@@ -277,7 +278,7 @@ impl<T, DB: Database> Inspector<T, DB> for TracerEip3155 {
         context: &mut EvmContext<DB>,
         inputs: &CreateInputs,
         outcome: CreateOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CreateOutcome {
         let outcome = self
             .gas_inspector

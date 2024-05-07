@@ -1,5 +1,7 @@
 //! GasIspector. Helper Inspector to calculate gas for others.
 
+use core::any::Any;
+
 use revm_interpreter::CallOutcome;
 
 use crate::{
@@ -26,7 +28,7 @@ impl GasInspector {
     }
 }
 
-impl<T, DB: Database> Inspector<T, DB> for GasInspector {
+impl<T: Any, DB: Database> Inspector<T, DB> for GasInspector {
     fn initialize_interp(
         &mut self,
         interp: &mut crate::interpreter::Interpreter,
@@ -39,7 +41,7 @@ impl<T, DB: Database> Inspector<T, DB> for GasInspector {
         &mut self,
         interp: &mut crate::interpreter::Interpreter,
         _context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         self.gas_remaining = interp.gas.remaining();
     }
@@ -48,7 +50,7 @@ impl<T, DB: Database> Inspector<T, DB> for GasInspector {
         &mut self,
         interp: &mut crate::interpreter::Interpreter,
         _context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         let remaining = interp.gas.remaining();
         self.last_gas_cost = self.gas_remaining.saturating_sub(remaining);
@@ -60,7 +62,7 @@ impl<T, DB: Database> Inspector<T, DB> for GasInspector {
         _context: &mut EvmContext<DB>,
         _inputs: &CallInputs,
         mut outcome: CallOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CallOutcome {
         if outcome.result.result.is_error() {
             outcome
@@ -77,7 +79,7 @@ impl<T, DB: Database> Inspector<T, DB> for GasInspector {
         _context: &mut EvmContext<DB>,
         _inputs: &CreateInputs,
         mut outcome: CreateOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CreateOutcome {
         if outcome.result.result.is_error() {
             outcome
@@ -93,12 +95,14 @@ impl<T, DB: Database> Inspector<T, DB> for GasInspector {
 #[cfg(test)]
 mod tests {
 
+    use core::any::Any;
     use core::convert::Infallible;
 
     use revm_interpreter::CallOutcome;
     use revm_interpreter::CreateOutcome;
 
     use crate::db::EmptyDBTyped;
+    use crate::inspector;
     use crate::{
         inspectors::GasInspector,
         interpreter::{CallInputs, CreateInputs, Interpreter},
@@ -113,30 +117,32 @@ mod tests {
         gas_remaining_steps: Vec<(usize, u64)>,
     }
 
-    impl<T, DB: Database> Inspector<T, DB> for StackInspector {
+    impl<T: Any, DB: Database> Inspector<T, DB> for StackInspector {
         fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-            self.gas_inspector.initialize_interp(interp, context);
+            // self.gas_inspector.initialize_interp(interp, context);
+            <GasInspector as Inspector<T, DB>>::initialize_interp(&mut self.gas_inspector, interp, context);
         }
 
         fn step(
             &mut self,
             interp: &mut Interpreter,
             context: &mut EvmContext<DB>,
-            additional_data: &mut T,
+            additional_data: T,
         ) {
             self.pc = interp.program_counter();
             self.gas_inspector.step(interp, context, &mut 1);
         }
 
         fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
-            self.gas_inspector.log(context, log);
+            // self.gas_inspector.log(context, log);
+            <GasInspector as inspector::Inspector<T, DB>>::log(&mut self.gas_inspector, context, log);
         }
 
         fn step_end(
             &mut self,
             interp: &mut Interpreter,
             context: &mut EvmContext<DB>,
-            additional_data: &mut T,
+            additional_data: T,
         ) {
             self.gas_inspector.step_end(interp, context, &mut 1);
             self.gas_remaining_steps
@@ -147,7 +153,7 @@ mod tests {
             &mut self,
             context: &mut EvmContext<DB>,
             call: &mut CallInputs,
-            additional_data: &mut T,
+            additional_data: T,
         ) -> Option<CallOutcome> {
             self.gas_inspector.call(context, call, &mut 1)
         }
@@ -157,7 +163,7 @@ mod tests {
             context: &mut EvmContext<DB>,
             inputs: &CallInputs,
             outcome: CallOutcome,
-            additional_data: &mut T,
+            additional_data: T,
         ) -> CallOutcome {
             self.gas_inspector
                 .call_end(context, inputs, outcome, &mut 1)
@@ -167,7 +173,7 @@ mod tests {
             &mut self,
             context: &mut EvmContext<DB>,
             call: &mut CreateInputs,
-            additional_data: &mut T,
+            additional_data: T,
         ) -> Option<CreateOutcome> {
             self.gas_inspector.create(context, call, &mut 1);
             None
@@ -178,7 +184,7 @@ mod tests {
             context: &mut EvmContext<DB>,
             inputs: &CreateInputs,
             outcome: CreateOutcome,
-            additional_data: &mut T,
+            additional_data: T,
         ) -> CreateOutcome {
             self.gas_inspector
                 .create_end(context, inputs, outcome, &mut 1)

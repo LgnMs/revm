@@ -1,3 +1,5 @@
+use core::any::Any;
+
 use crate::{
     interpreter::{CallInputs, CreateInputs, EOFCreateInput, EOFCreateOutcome, Interpreter},
     primitives::{db::Database, Address, Log, U256},
@@ -30,7 +32,7 @@ pub mod inspectors {
 
 /// EVM [Interpreter] callbacks.
 #[auto_impl(&mut, Box)]
-pub trait Inspector<T, DB: Database> {
+pub trait Inspector<T: Any, DB: Database> {
     /// Called before the interpreter is initialized.
     ///
     /// If `interp.instruction_result` is set to anything other than [crate::interpreter::InstructionResult::Continue] then the execution of the interpreter
@@ -54,7 +56,7 @@ pub trait Inspector<T, DB: Database> {
         &mut self,
         interp: &mut Interpreter,
         context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         let _ = interp;
         let _ = context;
@@ -69,7 +71,7 @@ pub trait Inspector<T, DB: Database> {
         &mut self,
         interp: &mut Interpreter,
         context: &mut EvmContext<DB>,
-        additional_data: &mut T,
+        additional_data: T,
     ) {
         let _ = interp;
         let _ = context;
@@ -90,7 +92,7 @@ pub trait Inspector<T, DB: Database> {
         &mut self,
         context: &mut EvmContext<DB>,
         inputs: &mut CallInputs,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> Option<CallOutcome> {
         let _ = context;
         let _ = inputs;
@@ -108,7 +110,7 @@ pub trait Inspector<T, DB: Database> {
         context: &mut EvmContext<DB>,
         inputs: &CallInputs,
         outcome: CallOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CallOutcome {
         let _ = context;
         let _ = inputs;
@@ -125,7 +127,7 @@ pub trait Inspector<T, DB: Database> {
         &mut self,
         context: &mut EvmContext<DB>,
         inputs: &mut CreateInputs,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> Option<CreateOutcome> {
         let _ = context;
         let _ = inputs;
@@ -142,7 +144,7 @@ pub trait Inspector<T, DB: Database> {
         context: &mut EvmContext<DB>,
         inputs: &CreateInputs,
         outcome: CreateOutcome,
-        additional_data: &mut T,
+        additional_data: T,
     ) -> CreateOutcome {
         let _ = context;
         let _ = inputs;

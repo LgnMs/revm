@@ -1,6 +1,8 @@
 //! Custom print inspector, it has step level information of execution.
 //! It is a great tool if some debugging is needed.
 
+use core::any::Any;
+
 use revm_interpreter::CallOutcome;
 use revm_interpreter::CreateOutcome;
 use revm_interpreter::OpCode;
@@ -20,14 +22,15 @@ pub struct CustomPrintTracer {
     gas_inspector: GasInspector,
 }
 
-impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
+impl<T: Any, DB: Database> Inspector<T, DB> for CustomPrintTracer {
     fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
-        self.gas_inspector.initialize_interp(interp, context);
+        // self.gas_inspector.initialize_interp(interp, context);
+        <GasInspector as Inspector<T, DB>>::initialize_interp(&mut self.gas_inspector, interp, context);
     }
 
     // get opcode by calling `interp.contract.opcode(interp.program_counter())`.
     // all other information can be obtained from interp.
-    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, _: &mut T) {
+    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, _: T) {
         let opcode = interp.current_opcode();
         let name = OpCode::name_by_op(opcode);
 
@@ -53,7 +56,7 @@ impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
             .step(interp, context, &mut u32::from_be(1));
     }
 
-    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, _: &mut T) {
+    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>, _: T) {
         self.gas_inspector
             .step_end(interp, context, &mut u32::from_be(1));
     }
@@ -63,7 +66,7 @@ impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
         context: &mut EvmContext<DB>,
         inputs: &CallInputs,
         outcome: CallOutcome,
-        _: &mut T,
+        _: T,
     ) -> CallOutcome {
         self.gas_inspector
             .call_end(context, inputs, outcome, &mut u32::from_be(1))
@@ -74,7 +77,7 @@ impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
         context: &mut EvmContext<DB>,
         inputs: &CreateInputs,
         outcome: CreateOutcome,
-        _: &mut T,
+        _: T,
     ) -> CreateOutcome {
         self.gas_inspector
             .create_end(context, inputs, outcome, &mut u32::from_be(1))
@@ -84,7 +87,7 @@ impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
         &mut self,
         _context: &mut EvmContext<DB>,
         inputs: &mut CallInputs,
-        _: &mut T,
+        _: T,
     ) -> Option<CallOutcome> {
         println!(
             "SM Address: {:?}, caller:{:?},target:{:?} is_static:{:?}, transfer:{:?}, input_size:{:?}",
@@ -102,7 +105,7 @@ impl<T, DB: Database> Inspector<T, DB> for CustomPrintTracer {
         &mut self,
         _context: &mut EvmContext<DB>,
         inputs: &mut CreateInputs,
-        _: &mut T,
+        _: T,
     ) -> Option<CreateOutcome> {
         println!(
             "CREATE CALL: caller:{:?}, scheme:{:?}, value:{:?}, init_code:{:?}, gas:{:?}",
